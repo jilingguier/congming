@@ -1,0 +1,135 @@
+#include <ESP8266WiFi.h>
+#include <Servo.h>
+
+const char* ssid = "Father";   //wifi名称
+const char* password = "13974980427";   //WiFi密码
+ 
+int ledPin = 13; // D7窗户开闭LED
+
+int rainLED = 12; // D6雨滴LED
+int raindrop = A0; // 雨水信号输入端
+
+WiFiServer server(80);
+Servo servo;
+
+void setup() {
+  servo.attach(2);  //D4舵机
+  servo.write(0);
+  delay(2000);
+  
+  Serial.begin(115200);
+  delay(10);
+ 
+  pinMode(ledPin, OUTPUT); //D7的LED设置
+  digitalWrite(ledPin, LOW);
+
+  pinMode(rainLED,OUTPUT); //D6雨滴LED设置
+  digitalWrite(rainLED,LOW);
+ 
+  // 连接到WiFi网络
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+ 
+  WiFi.begin(ssid, password);
+ 
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+ 
+  // 启动服务器
+  server.begin();
+  Serial.println("Server started");
+ 
+  // 打印IP地址
+  Serial.print("Use this URL to connect: ");
+  Serial.print("http://");
+  Serial.print(WiFi.localIP());
+  Serial.println("/");
+ 
+}
+ 
+void loop() {
+  
+  // 检查客户端是否连接
+  WiFiClient client = server.available();
+  if (!client) 
+  {
+    return;
+  }
+
+
+  // 等到客户端发送玩一些数据
+  Serial.println("new client");
+  while(!client.available())
+  {
+    delay(1);
+  }
+ 
+  // 读取请求的第一行
+  String request = client.readStringUntil('\r');
+  Serial.println(request);
+  client.flush();
+
+  // 匹配请求
+
+  int rainvalue = analogRead(A0);
+  int value = LOW;
+  if(rainvalue <550)
+  {      
+    digitalWrite(rainLED,HIGH);
+    servo.write(0);
+    delay(1000);
+    value = LOW;
+  }
+  else
+  {
+     if (request.indexOf("/LED=ON") != -1)  
+    {
+      servo.write(80);
+      delay(1000);
+      digitalWrite(rainLED,LOW);
+      digitalWrite(ledPin, HIGH);
+      value = HIGH;
+    }
+    if (request.indexOf("/LED=OFF") != -1)  
+    {
+      servo.write(0);
+      delay(1000);
+      digitalWrite(ledPin, LOW);
+      digitalWrite(rainLED,LOW);
+      value = LOW;
+    }
+  }
+
+ 
+  // 返回响应
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/html");
+  client.println(""); //  do not forget this one
+  client.println("<!DOCTYPE HTML>");
+  client.println("<html>");
+ 
+  client.print("window is now: ");
+ 
+  if(value == HIGH) {
+    client.print("On");
+  } else {
+    client.print("Off");
+  }
+  
+  client.println("<br><br>");
+  client.println("<a href=\"/LED=ON\"\"><button>On </button></a>");
+  client.println("<a href=\"/LED=OFF\"\"><button>Off </button></a><br />");  
+  client.println("</html>");
+ 
+  delay(1);
+  Serial.println("Client disonnected");
+  Serial.println("");
+ 
+}
